@@ -71,7 +71,8 @@ class Coupon(models.Model):
         if self.current_usage >= self.max_usage:
             return False, "Coupon usage limit reached"
         
-        if datetime.now() > self.expiry_date.replace(tzinfo=None):
+        now = timezone.now()
+        if now > self.expiry_date:
             return False, "This coupon has expired"
         
         return True, "Valid"

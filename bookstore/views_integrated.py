@@ -8,8 +8,6 @@ This file integrates all 5 design patterns with the Django views:
 3. Repository Pattern - Data access
 4. Observer Pattern - Order notifications
 5. Singleton Pattern - Configuration & notification management
-
-BACKUP: Original views saved in views_original_backup.py
 """
 
 from django.shortcuts import render, get_object_or_404, redirect
@@ -45,8 +43,11 @@ order_repo = OrderRepository()
 customer_repo = CustomerRepository()
 coupon_repo = CouponRepository()
 
+# Initialize services
+discount_service = DiscountService()
+payment_service = PaymentService()
+
 # Initialize managers (singletons)
-# Note: DiscountService and PaymentService are created per-request with specific data
 config_manager = ConfigManager()
 notification_manager = NotificationManager()
 
@@ -238,7 +239,7 @@ def view_cart(request):
     
     # Calculate discounts using DiscountService
     if cart_items:
-        discount_result = DiscountService.calculate_all_discounts_for(
+        discount_result = discount_service.calculate_all_discounts(
             subtotal=cart.subtotal,
             customer=customer,
             coupon=cart.applied_coupon
@@ -282,7 +283,7 @@ def apply_coupon(request):
         cart.save()
         
         # Calculate discount using DiscountService
-        discount_result = DiscountService.calculate_all_discounts_for(
+        discount_result = discount_service.calculate_all_discounts(
             subtotal=cart.subtotal,
             customer=customer,
             coupon=coupon
@@ -511,7 +512,7 @@ def process_card_payment(request):
         payment_processor = PaymentFactory.get_processor('Card')
         
         # Validate payment using Factory Pattern
-        is_valid, error_message = payment_processor.validate_payment_data({
+        is_valid, error_message = payment_processor.validate_payment({
             'card_number': card_number,
             'card_holder': card_holder,
             'expiry_month': expiry_month,
@@ -523,7 +524,7 @@ def process_card_payment(request):
             return JsonResponse({'success': False, 'message': error_message})
         
         # Calculate discounts using DiscountService
-        discount_result = DiscountService.calculate_all_discounts_for(
+        discount_result = discount_service.calculate_all_discounts(
             subtotal=cart.subtotal,
             customer=customer,
             coupon=cart.applied_coupon
@@ -548,7 +549,7 @@ def process_card_payment(request):
         )
         
         # Process payment using PaymentService
-        payment_result = PaymentService.process_payment_for(
+        payment_result = payment_service.process_payment(
             order=order,
             payment_method='Card',
             payment_details={
@@ -664,7 +665,7 @@ def checkout(request):
         if payment_method == 'Cash':
             try:
                 # Calculate discounts using DiscountService
-                discount_result = DiscountService.calculate_all_discounts_for(
+                discount_result = discount_service.calculate_all_discounts(
                     subtotal=cart.subtotal,
                     customer=customer,
                     coupon=cart.applied_coupon
@@ -689,7 +690,7 @@ def checkout(request):
                 )
                 
                 # Process payment using PaymentService
-                payment_result = PaymentService.process_payment_for(
+                payment_result = payment_service.process_payment(
                     order=order,
                     payment_method='Cash',
                     payment_details={}
