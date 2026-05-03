@@ -101,10 +101,7 @@ class CardPaymentProcessor(PaymentProcessor):
             Tuple[bool, str, Dict]: (success, message, payment_details)
         """
         try:
-            # Validate payment data
-            is_valid, error_msg = self.validate_payment_data(payment_data)
-            if not is_valid:
-                return False, error_msg, {}
+            # Note: Validation is handled by PaymentService before calling process_payment
             
             # In a real system, this would call a payment gateway API
             # For demo purposes, we'll simulate successful payment
@@ -271,7 +268,7 @@ class CardPaymentProcessor(PaymentProcessor):
         try:
             month = int(month)
             year = int(year)
-        except:
+        except (ValueError, TypeError):
             return False, "Invalid expiry date format"
         
         # Validate month

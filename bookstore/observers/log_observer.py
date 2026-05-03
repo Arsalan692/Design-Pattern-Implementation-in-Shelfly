@@ -6,7 +6,7 @@ Observer that logs order events.
 """
 
 from typing import Dict, Any
-from datetime import datetime
+from django.utils import timezone
 from .observer import Observer
 
 
@@ -38,7 +38,7 @@ class LogObserver(Observer):
         if not self.enabled:
             return
         
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        timestamp = timezone.now().strftime('%Y-%m-%d %H:%M:%S')
         log_entry = {
             'timestamp': timestamp,
             'event_type': event_type,
@@ -50,6 +50,10 @@ class LogObserver(Observer):
         
         # Store for testing
         self.logs.append(log_entry)
+        
+        # Prevent memory leaks by capping the log size
+        if len(self.logs) > 100:
+            self.logs = self.logs[-100:]
     
     def _log_to_console(self, log_entry: Dict[str, Any]) -> None:
         """

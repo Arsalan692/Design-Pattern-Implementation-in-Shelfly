@@ -7,7 +7,8 @@ Repository for Customer model operations.
 
 from typing import Optional
 from django.db.models import QuerySet, Count
-from datetime import datetime, timedelta
+from django.utils import timezone
+from datetime import timedelta
 
 from .base_repository import BaseRepository
 from bookstore.models import Customer
@@ -82,7 +83,7 @@ class CustomerRepository(BaseRepository):
     
     def update_profile(self, customer_id: int, email: str, phone: str, address: str) -> bool:
         """
-        Update customer profile.
+        Update customer profile including user email.
         
         Args:
             customer_id (int): Customer ID
@@ -107,7 +108,6 @@ class CustomerRepository(BaseRepository):
         customer.save()
         
         return True
-        return self.filter(is_first_time_buyer=False)
     
     def get_recent_registrations(self, days: int = 30) -> QuerySet:
         """
@@ -119,7 +119,7 @@ class CustomerRepository(BaseRepository):
         Returns:
             QuerySet: Recently registered customers
         """
-        since_date = datetime.now() - timedelta(days=days)
+        since_date = timezone.now() - timedelta(days=days)
         return self.filter(registration_date__gte=since_date).order_by('-registration_date')
     
     def get_active_customers(self, days: int = 90) -> QuerySet:
@@ -132,7 +132,7 @@ class CustomerRepository(BaseRepository):
         Returns:
             QuerySet: Active customers
         """
-        since_date = datetime.now() - timedelta(days=days)
+        since_date = timezone.now() - timedelta(days=days)
         return self.filter(
             order__order_date__gte=since_date
         ).distinct().order_by('-order__order_date')
@@ -147,42 +147,12 @@ class CustomerRepository(BaseRepository):
         Returns:
             QuerySet: Inactive customers
         """
-        since_date = datetime.now() - timedelta(days=days)
+        since_date = timezone.now() - timedelta(days=days)
         active_customer_ids = self.filter(
             order__order_date__gte=since_date
         ).values_list('id', flat=True)
         
         return self.get_all().exclude(id__in=active_customer_ids)
-    
-    def update_profile(
-        self, 
-        customer_id: int, 
-        phone: str = None, 
-        address: str = None
-    ) -> Optional[Customer]:
-        """
-        Update customer profile.
-        
-        Args:
-            customer_id (int): Customer ID
-            phone (str): Phone number (optional)
-            address (str): Address (optional)
-        
-        Returns:
-            Customer: Updated customer or None
-        """
-        customer = self.get_by_id(customer_id)
-        if not customer:
-            return None
-        
-        if phone is not None:
-            customer.phone = phone
-        
-        if address is not None:
-            customer.address = address
-        
-        customer.save()
-        return customer
     
     def mark_as_returning_customer(self, customer_id: int) -> bool:
         """

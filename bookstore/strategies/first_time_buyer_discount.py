@@ -15,8 +15,8 @@ class FirstTimeBuyerDiscountStrategy(DiscountStrategy):
     """
     Strategy for applying first-time buyer discount.
     
-    Discount:
-        - 15% off entire order for first-time buyers
+    Discount percentage is read from ConfigManager (Singleton Pattern).
+    Default: 15% off entire order for first-time buyers.
     
     This discount is only applied once per customer.
     After the first order, the customer's is_first_time_buyer flag
@@ -26,8 +26,18 @@ class FirstTimeBuyerDiscountStrategy(DiscountStrategy):
         - 'customer': Customer model instance
     """
     
-    # First-time buyer discount percentage
-    DISCOUNT_PERCENTAGE = Decimal('15')
+    # Fallback discount percentage if ConfigManager is unavailable
+    _DEFAULT_PERCENTAGE = Decimal('15')
+    
+    @property
+    def DISCOUNT_PERCENTAGE(self):
+        """Get discount percentage from ConfigManager or use default."""
+        try:
+            from ..managers.config_manager import ConfigManager
+            config = ConfigManager()
+            return config.get_first_time_buyer_discount()
+        except Exception:
+            return self._DEFAULT_PERCENTAGE
     
     def calculate_discount(self, subtotal: Decimal, context: Dict[str, Any]) -> Decimal:
         """
@@ -38,12 +48,12 @@ class FirstTimeBuyerDiscountStrategy(DiscountStrategy):
             context: Must contain 'customer' key with Customer instance
         
         Returns:
-            Decimal: 15% discount if customer is first-time buyer, else 0
+            Decimal: Discount if customer is first-time buyer, else 0
         """
         if not self.is_applicable(context):
             return Decimal('0.00')
         
-        # Calculate 15% discount
+        # Calculate discount using ConfigManager percentage
         discount = (subtotal * self.DISCOUNT_PERCENTAGE) / Decimal('100')
         return discount.quantize(Decimal('0.01'))
     

@@ -7,7 +7,8 @@ Repository for Order model operations.
 
 from typing import List, Optional
 from django.db.models import QuerySet, Sum, Count, Q
-from datetime import datetime, timedelta
+from django.utils import timezone
+from datetime import timedelta
 
 from .base_repository import BaseRepository
 from bookstore.models import Order
@@ -86,7 +87,7 @@ class OrderRepository(BaseRepository):
     
     def cancel_order(self, order_id: int, reason: str = None) -> bool:
         """
-        Cancel an order and restore stock.
+        Cancel an order, restore stock, and clean up coupon usage.
         
         Args:
             order_id (int): Order ID
@@ -99,6 +100,11 @@ class OrderRepository(BaseRepository):
         
         order = self.get_by_id(order_id)
         if not order:
+            return False
+        
+        # Check if order can be cancelled
+        cancellable_statuses = ['Pending', 'Confirmed']
+        if order.status not in cancellable_statuses:
             return False
         
         # Restore stock
@@ -201,20 +207,16 @@ class OrderRepository(BaseRepository):
         Returns:
             QuerySet: Recent orders
         """
-        since_date = datetime.now() - timedelta(days=days)
+        since_date = timezone.now() - timedelta(days=days)
         return self.filter(order_date__gte=since_date).order_by('-order_date')
     
-    def get_orders_by_date_range(
-        self, 
-        start_date: datetime, 
-        end_date: datetime
-    ) -> QuerySet:
+    def get_orders_by_date_range(self, start_date, end_date) -> QuerySet:
         """
         Get orders within date range.
         
         Args:
-            start_date (datetime): Start date
-            end_date (datetime): End date
+            start_date: Start date
+            end_date: End date
         
         Returns:
             QuerySet: Orders in date range
@@ -259,31 +261,6 @@ class OrderRepository(BaseRepository):
         
         cancellable_statuses = ['Pending', 'Confirmed']
         return order.status in cancellable_statuses
-    
-    def cancel_order(self, order_id: int, reason: str = None) -> bool:
-        """
-        Cancel an order.
-        
-        Args:
-            order_id (int): Order ID
-            reason (str): Cancellation reason (optional)
-        
-        Returns:
-            bool: True if cancelled successfully
-        """
-        if not self.can_be_cancelled(order_id):
-            return False
-        
-        order = self.get_by_id(order_id)
-        order.status = 'Cancelled'
-        order.save()
-        
-        # Create cancellation record if reason provided
-        if reason:
-            from bookstore.models import OrderCancellation
-            OrderCancellation.objects.create(order=order, reason=reason)
-        
-        return True
     
     def get_customer_order_count(self, customer) -> int:
         """
@@ -360,7 +337,7 @@ class OrderRepository(BaseRepository):
         Returns:
             QuerySet: Orders needing attention
         """
-        threshold_date = datetime.now() - timedelta(hours=24)
+        threshold_date = timezone.now() - timedelta(hours=24)
         return self.filter(
             status='Pending',
             order_date__lt=threshold_date

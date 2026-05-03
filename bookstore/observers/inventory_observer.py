@@ -42,7 +42,7 @@ class InventoryObserver(Observer):
         if not self.enabled:
             return
         
-        # Only monitor order-related events
+        # Monitor order-related events that affect inventory
         if event_type in ['order_placed', 'order_confirmed']:
             self._check_inventory_after_order(data)
         elif event_type == 'order_cancelled':
@@ -50,46 +50,79 @@ class InventoryObserver(Observer):
     
     def _check_inventory_after_order(self, data: Dict[str, Any]) -> None:
         """
-        Check inventory levels after an order.
+        Check inventory levels after an order by querying actual book stock.
         
         Args:
-            data (Dict): Event data
+            data (Dict): Event data containing order_id
         """
+        from bookstore.models import Order
+        
         order_id = data['order_id']
         
-        # Get order items (in real implementation, would query database)
-        # For demo, we'll simulate the check
-        
-        alert = {
-            'type': 'order_placed',
-            'order_id': order_id,
-            'message': f'Inventory checked after order #{order_id}'
-        }
-        
-        self.alerts.append(alert)
-        print(f"📦 Inventory check triggered for Order #{order_id}")
+        try:
+            order = Order.objects.get(id=order_id)
+            
+            for order_item in order.orderitem_set.select_related('book').all():
+                book = order_item.book
+                self.check_book_stock(book)
+            
+            alert = {
+                'type': 'order_placed',
+                'order_id': order_id,
+                'message': f'Inventory checked after order #{order_id}'
+            }
+            self.alerts.append(alert)
+            if len(self.alerts) > 100:
+                self.alerts = self.alerts[-100:]
+            print(f"📦 Inventory check completed for Order #{order_id}")
+            
+        except Order.DoesNotExist:
+            print(f"📦 Order #{order_id} not found for inventory check")
     
     def _check_inventory_after_cancellation(self, data: Dict[str, Any]) -> None:
         """
-        Check inventory levels after cancellation.
+        Check inventory levels after cancellation (stock restored).
         
         Args:
-            data (Dict): Event data
+            data (Dict): Event data containing order_id
         """
+        from bookstore.models import Order
+        
         order_id = data['order_id']
         
-        alert = {
-            'type': 'order_cancelled',
-            'order_id': order_id,
-            'message': f'Stock restored after Order #{order_id} cancellation'
-        }
-        
-        self.alerts.append(alert)
-        print(f"📦 Stock restored after Order #{order_id} cancellation")
+        try:
+            order = Order.objects.get(id=order_id)
+            
+            for order_item in order.orderitem_set.select_related('book').all():
+                book = order_item.book
+                alert = {
+                    'type': 'stock_restored',
+                    'order_id': order_id,
+                    'book_id': book.id,
+                    'book_title': book.title,
+                    'restored_qty': order_item.quantity,
+                    'new_stock': book.stock,
+                    'message': f'Stock restored for {book.title}: +{order_item.quantity} (now {book.stock})'
+                }
+                self.alerts.append(alert)
+                if len(self.alerts) > 100:
+                    self.alerts = self.alerts[-100:]
+                print(f"📦 Stock restored: {book.title} +{order_item.quantity} (now {book.stock})")
+                
+        except Order.DoesNotExist:
+            alert = {
+                'type': 'order_cancelled',
+                'order_id': order_id,
+                'message': f'Stock restored after Order #{order_id} cancellation'
+            }
+            self.alerts.append(alert)
+            if len(self.alerts) > 100:
+                self.alerts = self.alerts[-100:]
+            print(f"📦 Stock restored after Order #{order_id} cancellation")
     
     def check_book_stock(self, book) -> None:
         """
-        Check stock level for a specific book.
+        Check stock level for a specific book and generate alerts.
         
         Args:
             book: Book instance
@@ -118,6 +151,8 @@ class InventoryObserver(Observer):
         }
         
         self.alerts.append(alert)
+        if len(self.alerts) > 100:
+            self.alerts = self.alerts[-100:]
         print(f"⚠️  LOW STOCK: {book.title} - Only {book.stock} left!")
     
     def _send_out_of_stock_alert(self, book) -> None:
@@ -136,6 +171,8 @@ class InventoryObserver(Observer):
         }
         
         self.alerts.append(alert)
+        if len(self.alerts) > 100:
+            self.alerts = self.alerts[-100:]
         print(f"🚨 OUT OF STOCK: {book.title}")
     
     def get_alerts(self) -> list:

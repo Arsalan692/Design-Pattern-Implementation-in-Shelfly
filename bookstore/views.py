@@ -30,7 +30,6 @@ from functools import wraps
 # Import Design Pattern Components
 from .services.discount_service import DiscountService
 from .services.payment_service import PaymentService
-from .payments.payment_factory import PaymentFactory
 from .repositories.book_repository import BookRepository
 from .repositories.order_repository import OrderRepository
 from .repositories.customer_repository import CustomerRepository
@@ -244,12 +243,10 @@ def view_cart(request):
             coupon=cart.applied_coupon
         )
         
-        # Store discount amounts for display
-        cart.discount_breakdown = discount_result
-    
     context = {
         'cart': cart,
         'cart_items': cart_items,
+        'discount_result': discount_result if cart_items else None,
     }
     return render(request, 'bookstore/cart.html', context)
 
@@ -506,21 +503,8 @@ def process_card_payment(request):
             'message': 'All fields are required'
         })
     
-    # Use PaymentFactory to get card processor
+    # Process card payment using Factory Pattern
     try:
-        payment_processor = PaymentFactory.get_processor('Card')
-        
-        # Validate payment using Factory Pattern
-        is_valid, error_message = payment_processor.validate_payment_data({
-            'card_number': card_number,
-            'card_holder': card_holder,
-            'expiry_month': expiry_month,
-            'expiry_year': expiry_year,
-            'cvv': cvv
-        })
-        
-        if not is_valid:
-            return JsonResponse({'success': False, 'message': error_message})
         
         # Calculate discounts using DiscountService
         discount_result = DiscountService.calculate_all_discounts_for(

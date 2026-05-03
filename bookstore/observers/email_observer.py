@@ -219,6 +219,10 @@ class EmailNotificationObserver(Observer):
         
         # Store for testing
         self.sent_emails.append(email_content)
+        
+        # Prevent memory leak
+        if len(self.sent_emails) > 100:
+            self.sent_emails = self.sent_emails[-100:]
     
     def get_sent_emails(self) -> list:
         """

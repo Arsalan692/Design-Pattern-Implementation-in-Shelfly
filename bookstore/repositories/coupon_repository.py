@@ -7,7 +7,8 @@ Repository for Coupon model operations.
 
 from typing import Optional
 from django.db.models import QuerySet, Count
-from datetime import datetime
+from django.utils import timezone
+from datetime import timedelta
 
 from .base_repository import BaseRepository
 from bookstore.models import Coupon
@@ -63,7 +64,7 @@ class CouponRepository(BaseRepository):
         Returns:
             QuerySet: Expired coupons
         """
-        return self.filter(expiry_date__lt=datetime.now())
+        return self.filter(expiry_date__lt=timezone.now())
     
     def get_valid_coupons(self) -> QuerySet:
         """
@@ -74,7 +75,7 @@ class CouponRepository(BaseRepository):
         """
         return self.filter(
             is_active=True,
-            expiry_date__gt=datetime.now()
+            expiry_date__gt=timezone.now()
         )
     
     def get_by_discount_type(self, discount_type: str) -> QuerySet:
@@ -82,7 +83,7 @@ class CouponRepository(BaseRepository):
         Get coupons by discount type.
         
         Args:
-            discount_type (str): Discount type ('Percentage' or 'Fixed')
+            discount_type (str): Discount type ('fixed' or 'percentage')
         
         Returns:
             QuerySet: Coupons with specified discount type
@@ -111,16 +112,6 @@ class CouponRepository(BaseRepository):
             return False, f'Minimum purchase of Rs. {coupon.min_purchase} required'
         
         return True, 'Valid'
-        """
-        Get coupons by discount type.
-        
-        Args:
-            discount_type (str): 'fixed' or 'percentage'
-        
-        Returns:
-            QuerySet: Coupons of specified type
-        """
-        return self.filter(discount_type=discount_type)
     
     def is_valid(self, code: str) -> tuple:
         """
@@ -140,7 +131,7 @@ class CouponRepository(BaseRepository):
         if not coupon.is_active:
             return False, "Coupon is inactive"
         
-        if datetime.now() > coupon.expiry_date.replace(tzinfo=None):
+        if timezone.now() > coupon.expiry_date:
             return False, "Coupon has expired"
         
         if coupon.current_usage >= coupon.max_usage:
@@ -282,12 +273,11 @@ class CouponRepository(BaseRepository):
         Returns:
             QuerySet: Coupons expiring soon
         """
-        from datetime import timedelta
-        
-        end_date = datetime.now() + timedelta(days=days)
+        now = timezone.now()
+        end_date = now + timedelta(days=days)
         return self.filter(
             is_active=True,
-            expiry_date__gte=datetime.now(),
+            expiry_date__gte=now,
             expiry_date__lte=end_date
         ).order_by('expiry_date')
     

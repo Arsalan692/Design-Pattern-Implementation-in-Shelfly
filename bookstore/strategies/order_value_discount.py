@@ -15,25 +15,47 @@ class OrderValueDiscountStrategy(DiscountStrategy):
     """
     Strategy for applying automatic discounts based on order value.
     
-    Discount Tiers (configurable):
+    Discount tiers are read from ConfigManager (Singleton Pattern)
+    so that changing configuration in one place updates all calculations.
+    
+    Default Tiers:
         - Orders >= Rs. 5,000: 15% off
         - Orders >= Rs. 2,000: 10% off
         - Orders >= Rs. 1,000: 5% off
         - Orders < Rs. 1,000: No discount
     
-    This replaces the hardcoded logic previously in Cart and Order models.
-    
     Context Requirements:
         - None (only needs subtotal)
     """
     
-    # Discount tiers: (minimum_amount, discount_percentage)
-    # Sorted in descending order for efficient lookup
-    DISCOUNT_TIERS = [
-        (Decimal('5000.00'), Decimal('15')),  # 15% off for orders >= 5000
-        (Decimal('2000.00'), Decimal('10')),  # 10% off for orders >= 2000
-        (Decimal('1000.00'), Decimal('5')),   # 5% off for orders >= 1000
+    # Fallback discount tiers if ConfigManager is unavailable
+    _DEFAULT_TIERS = [
+        (Decimal('5000.00'), Decimal('15')),
+        (Decimal('2000.00'), Decimal('10')),
+        (Decimal('1000.00'), Decimal('5')),
     ]
+    
+    def _get_discount_tiers(self):
+        """
+        Get discount tiers from ConfigManager (Singleton).
+        Falls back to hardcoded defaults if ConfigManager is unavailable.
+        
+        Returns:
+            list: List of (min_amount, percentage) tuples, sorted descending
+        """
+        try:
+            from ..managers.config_manager import ConfigManager
+            config = ConfigManager()
+            tiers_config = config.get_order_value_tiers()
+            if tiers_config:
+                return [
+                    (tier['min_amount'], tier['percentage'])
+                    for tier in tiers_config
+                ]
+        except Exception:
+            pass
+        
+        return self._DEFAULT_TIERS
     
     def calculate_discount(self, subtotal: Decimal, context: Dict[str, Any]) -> Decimal:
         """
@@ -49,8 +71,8 @@ class OrderValueDiscountStrategy(DiscountStrategy):
         if not self.is_applicable(context):
             return Decimal('0.00')
         
-        # Find applicable tier
-        for min_amount, discount_percentage in self.DISCOUNT_TIERS:
+        # Find applicable tier from ConfigManager
+        for min_amount, discount_percentage in self._get_discount_tiers():
             if subtotal >= min_amount:
                 discount = (subtotal * discount_percentage) / Decimal('100')
                 return discount.quantize(Decimal('0.01'))
@@ -69,13 +91,14 @@ class OrderValueDiscountStrategy(DiscountStrategy):
     
     def is_applicable(self, context: Dict[str, Any]) -> bool:
         """
-        Order value discount is always applicable.
+        Order value discount is applicable when subtotal is provided.
+        The actual tier check happens in calculate_discount.
         
         Args:
             context: Not used
         
         Returns:
-            bool: Always True
+            bool: True (tier matching is done in calculate_discount)
         """
         return True
     
@@ -98,14 +121,13 @@ class OrderValueDiscountStrategy(DiscountStrategy):
         Returns:
             tuple: (min_amount, discount_percentage) or (None, None)
         """
-        for min_amount, discount_percentage in self.DISCOUNT_TIERS:
+        for min_amount, discount_percentage in self._get_discount_tiers():
             if subtotal >= min_amount:
                 return (min_amount, discount_percentage)
         
         return (None, None)
     
-    @classmethod
-    def get_tier_description(cls, subtotal: Decimal) -> str:
+    def get_tier_description(self, subtotal: Decimal) -> str:
         """
         Get a description of the applicable tier.
         
@@ -115,14 +137,13 @@ class OrderValueDiscountStrategy(DiscountStrategy):
         Returns:
             str: Description like "15% off (orders >= Rs. 5,000)"
         """
-        for min_amount, discount_percentage in cls.DISCOUNT_TIERS:
+        for min_amount, discount_percentage in self._get_discount_tiers():
             if subtotal >= min_amount:
                 return f"{discount_percentage}% off (orders >= Rs. {min_amount:,.2f})"
         
         return "No discount"
     
-    @classmethod
-    def get_next_tier_info(cls, subtotal: Decimal) -> Dict[str, Any]:
+    def get_next_tier_info(self, subtotal: Decimal) -> Dict[str, Any]:
         """
         Get information about the next discount tier.
         
@@ -140,10 +161,11 @@ class OrderValueDiscountStrategy(DiscountStrategy):
                 'has_next_tier': bool
             }
         """
+        tiers = self._get_discount_tiers()
         current_tier_index = None
         
         # Find current tier
-        for i, (min_amount, _) in enumerate(cls.DISCOUNT_TIERS):
+        for i, (min_amount, _) in enumerate(tiers):
             if subtotal >= min_amount:
                 current_tier_index = i
                 break
@@ -151,8 +173,8 @@ class OrderValueDiscountStrategy(DiscountStrategy):
         # Check if there's a higher tier
         if current_tier_index is None:
             # Not in any tier, show the lowest tier
-            if cls.DISCOUNT_TIERS:
-                lowest_tier = cls.DISCOUNT_TIERS[-1]
+            if tiers:
+                lowest_tier = tiers[-1]
                 return {
                     'next_tier_amount': lowest_tier[0],
                     'next_tier_percentage': lowest_tier[1],
@@ -161,7 +183,7 @@ class OrderValueDiscountStrategy(DiscountStrategy):
                 }
         elif current_tier_index > 0:
             # There's a higher tier
-            next_tier = cls.DISCOUNT_TIERS[current_tier_index - 1]
+            next_tier = tiers[current_tier_index - 1]
             return {
                 'next_tier_amount': next_tier[0],
                 'next_tier_percentage': next_tier[1],

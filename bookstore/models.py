@@ -147,42 +147,32 @@ class Order(models.Model):
         """Return stored coupon discount or calculate for new orders"""
         if self.pk:
             return self.coupon_discount_amount
-        
-        if self.applied_coupon:
-            is_valid, msg = self.applied_coupon.is_valid()
-            if is_valid and self.subtotal >= self.applied_coupon.min_purchase:
-                return self.applied_coupon.calculate_discount(self.subtotal)
-        return Decimal('0.00')
+        from bookstore.services.discount_service import DiscountService
+        return DiscountService.for_order(self).calculate_coupon_discount()
     
     @property
     def order_value_discount(self):
         """Return stored order value discount or calculate for new orders"""
         if self.pk:
             return self.order_value_discount_amount
-        
-        subtotal = self.subtotal
-        if subtotal >= 5000:
-            return subtotal * Decimal('0.15')
-        elif subtotal >= 2000:
-            return subtotal * Decimal('0.10')
-        elif subtotal >= 1000:
-            return subtotal * Decimal('0.05')
-        return Decimal('0.00')
+        from bookstore.services.discount_service import DiscountService
+        return DiscountService.for_order(self).calculate_order_value_discount()
     
     @property
     def first_time_discount(self):
         """Return stored first-time discount or calculate for new orders"""
         if self.pk:
             return self.first_time_discount_amount
-        
-        if self.customer.is_first_time_buyer:
-            return self.subtotal * Decimal('0.15')
-        return Decimal('0.00')
+        from bookstore.services.discount_service import DiscountService
+        return DiscountService.for_order(self).calculate_first_time_discount()
     
     @property
     def total_discount(self):
         """Calculate total discount applied"""
-        return self.coupon_discount + self.order_value_discount + self.first_time_discount
+        if self.pk:
+            return self.coupon_discount_amount + self.order_value_discount_amount + self.first_time_discount_amount
+        from bookstore.services.discount_service import DiscountService
+        return DiscountService.for_order(self).calculate_total_discount()
     
     @property
     def total_amount(self):
@@ -286,35 +276,26 @@ class Cart(models.Model):
     @property
     def coupon_discount(self):
         """Calculate coupon discount if applied"""
-        if self.applied_coupon:
-            is_valid, msg = self.applied_coupon.is_valid()
-            if is_valid and self.subtotal >= self.applied_coupon.min_purchase:
-                return self.applied_coupon.calculate_discount(self.subtotal)
-        return Decimal('0.00')
+        from bookstore.services.discount_service import DiscountService
+        return DiscountService.for_cart(self).calculate_coupon_discount()
     
     @property
     def order_value_discount(self):
         """Calculate auto discount based on order value"""
-        subtotal = self.subtotal
-        if subtotal >= 5000:
-            return subtotal * Decimal('0.15')
-        elif subtotal >= 2000:
-            return subtotal * Decimal('0.10')
-        elif subtotal >= 1000:
-            return subtotal * Decimal('0.05')
-        return Decimal('0.00')
+        from bookstore.services.discount_service import DiscountService
+        return DiscountService.for_cart(self).calculate_order_value_discount()
     
     @property
     def first_time_discount(self):
-        """Calculate first-time buyer discount (15%)"""
-        if self.customer.is_first_time_buyer:
-            return self.subtotal * Decimal('0.15')
-        return Decimal('0.00')
+        """Calculate first-time buyer discount"""
+        from bookstore.services.discount_service import DiscountService
+        return DiscountService.for_cart(self).calculate_first_time_discount()
     
     @property
     def total_discount(self):
         """Calculate total discount"""
-        return self.coupon_discount + self.order_value_discount + self.first_time_discount
+        from bookstore.services.discount_service import DiscountService
+        return DiscountService.for_cart(self).calculate_total_discount()
     
     @property
     def total_amount(self):
