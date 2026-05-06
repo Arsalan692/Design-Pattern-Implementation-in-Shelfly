@@ -81,33 +81,37 @@ class CustomerRepository(BaseRepository):
         """
         return self.filter(is_first_time_buyer=False)
     
-    def update_profile(self, customer_id: int, email: str, phone: str, address: str) -> bool:
+    def update_profile(self, customer_id: int, email: str = None, phone: str = None, address: str = None):
         """
         Update customer profile including user email.
         
         Args:
             customer_id (int): Customer ID
-            email (str): New email
-            phone (str): New phone
-            address (str): New address
+            email (str): New email (optional)
+            phone (str): New phone (optional)
+            address (str): New address (optional)
         
         Returns:
-            bool: True if updated successfully
+            Customer: Updated customer instance or None if not found
         """
         customer = self.get_by_id(customer_id)
         if not customer:
-            return False
+            return None
         
-        # Update user email
-        customer.user.email = email
-        customer.user.save()
+        # Update user email (only if provided)
+        if email:
+            customer.user.email = email
+            customer.user.save()
         
-        # Update customer details
-        customer.phone = phone
-        customer.address = address
-        customer.save()
+        # Update customer details (only if provided)
+        if phone:
+            customer.phone = phone
+        if address:
+            customer.address = address
+        if phone or address:
+            customer.save()
         
-        return True
+        return customer
     
     def get_recent_registrations(self, days: int = 30) -> QuerySet:
         """

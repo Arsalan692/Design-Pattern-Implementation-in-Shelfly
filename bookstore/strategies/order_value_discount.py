@@ -143,7 +143,8 @@ class OrderValueDiscountStrategy(DiscountStrategy):
         
         return "No discount"
     
-    def get_next_tier_info(self, subtotal: Decimal) -> Dict[str, Any]:
+    @staticmethod
+    def get_next_tier_info(subtotal: Decimal) -> Dict[str, Any]:
         """
         Get information about the next discount tier.
         
@@ -161,7 +162,9 @@ class OrderValueDiscountStrategy(DiscountStrategy):
                 'has_next_tier': bool
             }
         """
-        tiers = self._get_discount_tiers()
+        # Create instance to get tiers
+        instance = OrderValueDiscountStrategy()
+        tiers = instance._get_discount_tiers()
         current_tier_index = None
         
         # Find current tier
