@@ -245,15 +245,6 @@ python run_all_pattern_tests.py
 | `/about/` | About page |
 | `/admin/` | Admin panel |
 
-## screenshots
-
-The project includes:
-- ERD diagram: `Database-ERD.jpg`
-- System diagram: `diagram.png`
-
-## License
-
-This project is for educational purposes.
 
 ## Author
 
